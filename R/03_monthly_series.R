@@ -59,6 +59,12 @@ completeness[, p := mapply(function(u, dx, l) {
   mean(x <= l)
 }, uf_file, diagnosis, L)]
 
+# cumulative proportion processed within L months (national and range across states), for the supplement
+delay_national <- ref[, .(n = .N), by = .(diagnosis, L = pmin(delay, 12L))][order(diagnosis, L)]
+delay_national[, p := cumsum(n) / sum(n), by = diagnosis]
+delay_states <- completeness[, .(p_min = min(p), p_max = max(p)), by = .(diagnosis, L)]
+fwrite(merge(delay_national, delay_states, by = c("diagnosis", "L")), "output/tables/sih_delay_distribution.csv")
+
 s26 <- merge(sih[month >= vaccine_date & month <= end_date], last, by = "uf_file")
 s26[, L := pmin(12L, months_between(month, last_processing))]
 s26 <- merge(s26, completeness, by = c("uf_file", "diagnosis", "L"))

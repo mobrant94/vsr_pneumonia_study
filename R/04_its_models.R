@@ -24,6 +24,7 @@ models <- list(
   spline         = list(f = f_spline, start = "2022-01-01"),
   spline_delay   = list(f = f_spline, start = "2022-01-01"),   # SIH admissions corrected for processing delay
   linear         = list(f = f_linear, start = "2022-01-01"),
+  linear_delay   = list(f = f_linear, start = "2022-01-01"),
   linear_2023    = list(f = f_linear, start = "2023-01-01"),
   linear_2024    = list(f = f_linear, start = "2024-01-01"),
   quadratic      = list(f = y ~ time_c + I(time_c^2) + factor(month_num) + post, start = "2022-01-01"),
@@ -32,7 +33,7 @@ models <- list(
 results <- list(); expected <- list(); diagnostics <- list()
 
 for (m in names(models)) for (age in c("lt6", "lt3", "3to5")) for (out in outcomes) {
-  var <- if (m == "spline_delay") paste0(out, "_nc") else out
+  var <- if (grepl("_delay", m)) paste0(out, "_nc") else out
   if (!var %in% names(br)) next
   d <- br[age_group == age & month >= as.Date(models[[m]]$start)]
   d[, y := round(get(var))]

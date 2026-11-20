@@ -77,3 +77,18 @@ for (i in seq_along(labels)) {
     labs(title = labels[[out]]) + theme(plot.title = element_text(face = "bold", size = 11))
   ggsave(sprintf("output/figures/FigureS%02d_%s.png", i, out), g, width = 7.5, height = 7, dpi = 300, bg = "white")
 }
+
+# SIH admissions in 2026 as recorded and corrected for processing delay, infants <6 months
+nc <- fread("output/tables/sih_delay_correction_2026.csv")[age_group == "lt6"]
+nc[, `:=`(month = as.Date(month), diagnosis = factor(labels[diagnosis], levels = labels[1:2]))]
+g <- ggplot(nc, aes(month)) +
+  geom_col(aes(y = observed, fill = "Recorded"), width = 20) +
+  geom_line(aes(y = corrected, colour = "Corrected for processing delay"), linewidth = .7) +
+  geom_point(aes(y = corrected, colour = "Corrected for processing delay"), size = 1.4) +
+  facet_wrap(~diagnosis, ncol = 2, scales = "free_y") +
+  scale_fill_manual(values = "#9ec3d4", name = NULL) + scale_colour_manual(values = "#bd5b33", name = NULL) +
+  scale_x_date(date_breaks = "1 month", date_labels = "%b") +
+  labs(x = "Month of admission, 2026", y = "Admissions") +
+  theme_minimal(base_size = 10.5) +
+  theme(legend.position = "bottom", panel.grid.minor = element_blank(), strip.text = element_text(face = "bold", hjust = 0))
+ggsave("output/figures/FigureS_delay_correction.png", g, width = 8, height = 3.8, dpi = 300, bg = "white")
