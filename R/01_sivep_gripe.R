@@ -4,6 +4,8 @@
 setwd("~/vsr_pneumonia_study")
 source("R/00_setup.R")
 
+raw_dir <- "data/raw"   # folder with the INFLUD files (files already downloaded are not downloaded again)
+
 # files used in the study (one per year; the date in the name is the extraction date)
 files <- c(`2022` = "INFLUD22-23-03-2026.csv", `2023` = "INFLUD23-23-03-2026.csv",
            `2024` = "INFLUD24-23-03-2026.csv", `2025` = "INFLUD25-19-10-2026.csv",
@@ -12,7 +14,7 @@ url <- "https://s3.sa-east-1.amazonaws.com/ckan.saude.gov.br/SRAG"
 
 options(timeout = 7200)
 for (y in names(files)) {
-  f <- file.path("data/raw", files[[y]])
+  f <- file.path(raw_dir, files[[y]])
   if (!file.exists(f)) download.file(paste(url, y, files[[y]], sep = "/"), f, mode = "wb")
 }
 
@@ -20,15 +22,23 @@ for (y in names(files)) {
 extraction <- dmy(sub("INFLUD26-(.*)[.]csv", "\\1", files[["2026"]]))
 last_month <- floor_date(extraction, "month") %m-% months(1)
 
+# dates come as YYYY-MM-DD (or DD/MM/YYYY in some extractions)
+read_date <- function(x) {
+  d <- as.Date(substr(x, 1, 10), format = "%Y-%m-%d")
+  d[is.na(d)] <- as.Date(substr(x[is.na(d)], 1, 10), format = "%d/%m/%Y")
+  d
+}
+
 vars <- c("NU_NOTIFIC", "DT_SIN_PRI", "DT_NASC", "NU_IDADE_N", "TP_IDADE", "SG_UF", "CO_MUN_RES",
-          "HOSPITAL", "EVOLUCAO", "PCR_VSR", "AN_VSR", "UTI", "SUPORT_VEN", "M_AMAMENTA")
+          "HOSPITAL", "EVOLUCAO", "PCR_VSR", "AN_VSR", "UTI", "SUPORT_VEN", "M_AMAMENTA",
+          "DT_DIGITA", "DT_PCR", "DT_RES_AN", "DT_EVOLUCA")
 
 cases <- list()
 for (y in names(files)) {
-  s <- fread(file.path("data/raw", files[[y]]), sep = ";", select = vars, colClasses = "character")
+  s <- fread(file.path(raw_dir, files[[y]]), sep = ";", select = vars, colClasses = "character")
 
-  s[, onset := as.Date(substr(DT_SIN_PRI, 1, 10), format = "%Y-%m-%d")]
-  s[, birth := as.Date(substr(DT_NASC, 1, 10), format = "%Y-%m-%d")]
+  s[, onset := read_date(DT_SIN_PRI)]
+  s[, birth := read_date(DT_NASC)]
   s[, month := floor_date(onset, "month")]
   s[, uf := uf_from_mun(CO_MUN_RES)]
   s[is.na(uf) & SG_UF %in% ufs, uf := SG_UF]
@@ -52,7 +62,16 @@ for (y in names(files)) {
   s[, death := fifelse(EVOLUCAO %in% c("1", "2", "3"), EVOLUCAO %in% c("2", "3"), NA)]
   s[, breastfed := fifelse(M_AMAMENTA %in% c("1", "2"), M_AMAMENTA == "1", NA)]
 
-  cases[[y]] <- s[, .(uf, month, onset, lt3, lt6, rsv, icu, imv, death, breastfed)]
+  # dates used in the reporting-delay analysis: entry into the system (DT_DIGITA) and,
+  # for RSV, the later of the date of entry and the date of the positive result
+  s[, entered := read_date(DT_DIGITA)]
+  s[, rsv_result := fifelse(PCR_VSR %in% "1", read_date(DT_PCR), read_date(DT_RES_AN))]
+  s[, rsv_known := fifelse(rsv, pmax(entered, rsv_result, na.rm = TRUE), as.Date(NA))]
+  s[, outcome_date := read_date(DT_EVOLUCA)]
+  s[, extraction := dmy(sub("INFLUD..-(.*)[.]csv", "\\1", files[[y]]))]
+
+  cases[[y]] <- s[, .(uf, month, onset, lt3, lt6, rsv, icu, imv, death, breastfed,
+                      entered, rsv_known, outcome_date, extraction)]
   message(y, ": ", nrow(s), " hospitalized cases <6 months")
 }
 

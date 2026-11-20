@@ -76,6 +76,38 @@ br[, `:=`(bronchiolitis_nc = as.numeric(bronchiolitis), pneumonia_nc = as.numeri
 br[nowcast[diagnosis == "bronchiolitis"], on = .(month, age_group), bronchiolitis_nc := i.corrected]
 br[nowcast[diagnosis == "pneumonia"], on = .(month, age_group), pneumonia_nc := i.corrected]
 
+# sensitivity analysis: SIVEP-Gripe cases in 2026 corrected for reporting delay
+# delay = days from the first day of the month of onset to the date the case was available in the system
+# (date of entry; for RSV outcomes, the later of the date of entry and the date of the positive result)
+# p(window) = proportion of cases in 2023-2025 available within the days between the month of onset and the 2026 extraction
+sivep[, delay_all := as.integer(entered - month)]
+sivep[, delay_rsv := as.integer(rsv_known - month)]
+sivep[, `:=`(sari_all = TRUE, icu_all = icu %in% TRUE, imv_all = imv %in% TRUE,
+             sari_rsv = rsv, icu_rsv = rsv & icu %in% TRUE, imv_rsv = rsv & imv %in% TRUE)]
+ref <- sivep[year(month) %in% 2023:2025]
+s26 <- sivep[month >= vaccine_date & month <= end_date]
+s26[, window := as.integer(extraction - month)]
+
+sivep_nowcast <- list()
+for (v in c("sari_all", "icu_all", "imv_all", "sari_rsv", "icu_rsv", "imv_rsv")) {
+  d <- if (grepl("rsv", v)) "delay_rsv" else "delay_all"
+  r <- ref[get(v) == TRUE & get(d) >= 0]
+  x <- s26[get(v) == TRUE]
+  tab <- unique(x[, .(uf, window)])
+  tab[, p := mapply(function(u, w) {
+    del <- r[uf == u][[d]]
+    if (length(del) < 200) del <- r[[d]]                      # few cases: national distribution
+    max(mean(del <= w), 0.01)
+  }, uf, window)]
+  x <- merge(x, tab, by = c("uf", "window"))
+  corr <- rbind(x[lt3 == TRUE, .(age_group = "lt3", observed = .N, corrected = sum(1 / p)), by = month],
+                x[lt6 == TRUE, .(age_group = "lt6", observed = .N, corrected = sum(1 / p)), by = month])
+  br[, paste0(v, "_nc") := as.numeric(get(v))]
+  br[corr, on = .(month, age_group), paste0(v, "_nc") := i.corrected]
+  sivep_nowcast[[v]] <- corr[, outcome := v]
+}
+fwrite(rbindlist(sivep_nowcast)[order(outcome, age_group, month)], "output/tables/sivep_delay_correction_2026.csv")
+
 # infants aged 3 to <6 months = (<6 months) - (<3 months)
 setorder(br, age_group, month)
 b3 <- br[age_group == "lt3"]
@@ -87,6 +119,8 @@ br <- rbind(br, b35)
 # deaths corrected for missing outcome: recorded deaths x cases / cases with known outcome
 br[, death_corr_all := death_all * sari_all / pmax(1, known_all)]
 br[, death_corr_rsv := death_rsv * sari_rsv / pmax(1, known_rsv)]
+br[, death_corr_all_nc := death_corr_all * sari_all_nc / pmax(1, sari_all)]   # delay correction of the number of cases
+br[, death_corr_rsv_nc := death_corr_rsv * sari_rsv_nc / pmax(1, sari_rsv)]
 
 setorder(br, age_group, month)
 fwrite(br, "data/brazil_monthly_series.csv")
