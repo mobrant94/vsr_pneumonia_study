@@ -1,0 +1,6 @@
+data/raw/
+data/processed/
+output/
+.Rhistory
+.RData
+.Rproj.user/
