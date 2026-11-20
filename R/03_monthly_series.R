@@ -84,7 +84,7 @@ sivep[, delay_all := as.integer(entered - month)]
 sivep[, delay_rsv := as.integer(rsv_known - month)]
 sivep[, `:=`(sari_all = TRUE, icu_all = icu %in% TRUE, imv_all = imv %in% TRUE,
              sari_rsv = rsv, icu_rsv = rsv & icu %in% TRUE, imv_rsv = rsv & imv %in% TRUE)]
-ref <- sivep[year(month) %in% 2023:2025]
+ref <- sivep[year(month) %in% 2023:2024]   # files extracted in March 2026 (complete follow-up of reporting)
 s26 <- sivep[month >= vaccine_date & month <= end_date]
 s26[, window := as.integer(extraction - month)]
 
