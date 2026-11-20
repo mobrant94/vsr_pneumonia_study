@@ -7,6 +7,7 @@ start_date   <- as.Date("2022-01-01")   # first month of the series
 vaccine_date <- as.Date("2026-01-01")   # first month after the introduction of maternal RSV vaccination
 end_date     <- as.Date("2026-08-01")   # last month analyzed
 nw_lag       <- 12                      # lag (months) of the Newey-West variance
+delay_years  <- 2022:2025               # reference years for the reporting-delay distributions
 
 ufs <- c("AC","AL","AM","AP","BA","CE","DF","ES","GO","MA","MG","MS","MT","PA",
          "PB","PE","PI","PR","RJ","RN","RS","RO","RR","SC","SP","SE","TO")

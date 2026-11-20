@@ -47,11 +47,11 @@ br <- merge(pop, br, by = c("month", "age_group"))
 setnafill(br, fill = 0, cols = names(br)[-(1:2)])
 
 # sensitivity analysis: SIH admissions in 2026 corrected for processing delay
-# p(L) = proportion of admissions in 2023-2025 processed within L months, by state of processing and diagnosis
+# p(L) = proportion of admissions in the reference years processed within L months, by state of processing and diagnosis
 last <- fread("data/processed/sih_last_processing.csv")
 last[, last_processing := as.Date(last_processing)]
 sih[, delay := months_between(month, processing)]
-ref <- sih[year(month) %in% 2023:2025]
+ref <- sih[year(month) %in% delay_years]
 completeness <- CJ(uf_file = last$uf_file, diagnosis = c("bronchiolitis", "pneumonia"), L = 0:12)
 completeness[, p := mapply(function(u, dx, l) {
   x <- ref[uf_file == u & diagnosis == dx, delay]
@@ -79,12 +79,12 @@ br[nowcast[diagnosis == "pneumonia"], on = .(month, age_group), pneumonia_nc := 
 # sensitivity analysis: SIVEP-Gripe cases in 2026 corrected for reporting delay
 # delay = days from the first day of the month of onset to the date the case was available in the system
 # (date of entry; for RSV outcomes, the later of the date of entry and the date of the positive result)
-# p(window) = proportion of cases in 2023-2025 available within the days between the month of onset and the 2026 extraction
+# p(window) = proportion of cases in the reference years available within the days between the month of onset and the 2026 extraction
 sivep[, delay_all := as.integer(entered - month)]
 sivep[, delay_rsv := as.integer(rsv_known - month)]
 sivep[, `:=`(sari_all = TRUE, icu_all = icu %in% TRUE, imv_all = imv %in% TRUE,
              sari_rsv = rsv, icu_rsv = rsv & icu %in% TRUE, imv_rsv = rsv & imv %in% TRUE)]
-ref <- sivep[year(month) %in% 2023:2024]   # files extracted in March 2026 (complete follow-up of reporting)
+ref <- sivep[year(month) %in% delay_years & !is.na(entered)]
 s26 <- sivep[month >= vaccine_date & month <= end_date]
 s26[, window := as.integer(extraction - month)]
 
@@ -107,6 +107,17 @@ for (v in c("sari_all", "icu_all", "imv_all", "sari_rsv", "icu_rsv", "imv_rsv"))
   sivep_nowcast[[v]] <- corr[, outcome := v]
 }
 fwrite(rbindlist(sivep_nowcast)[order(outcome, age_group, month)], "output/tables/sivep_delay_correction_2026.csv")
+
+# national completeness by month of onset and delays from symptom onset (for the supplement)
+w26 <- unique(s26[, .(month, window)])[order(month)]
+w26[, p_all := sapply(window, function(w) mean(ref[delay_all >= 0, delay_all] <= w))]
+w26[, p_rsv := sapply(window, function(w) mean(ref[rsv & delay_rsv >= 0, delay_rsv] <= w))]
+fwrite(w26, "output/tables/sivep_delay_completeness.csv")
+fwrite(data.table(group = c("all", "rsv"),
+                  median_days = c(median(as.numeric(ref[, entered - onset])), median(as.numeric(ref[rsv == TRUE, rsv_known - onset]))),
+                  p90_days = c(quantile(as.numeric(ref[, entered - onset]), .9), quantile(as.numeric(ref[rsv == TRUE, rsv_known - onset]), .9)),
+                  pct_result_after_entry = c(NA, 100 * ref[rsv == TRUE, mean(rsv_known > entered)])),
+       "output/tables/sivep_delay_summary.csv")
 
 # infants aged 3 to <6 months = (<6 months) - (<3 months)
 setorder(br, age_group, month)

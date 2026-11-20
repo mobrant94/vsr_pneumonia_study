@@ -25,8 +25,9 @@ All sources are public. Monthly counts are aggregated for Brazil; no record link
 | `R/04_its_models.R` | Negative binomial interrupted time-series models (spline trend as primary analysis; sensitivity analyses with other trend specifications and delay-corrected SIH counts), expected events, and differences |
 | `R/05_breastfeeding.R` | Breastfeeding among hospitalized infants (descriptive) |
 | `R/06_figures.R` | Figures |
+| `R/run_all.R` | Runs all scripts in sequence |
 
-Reporting-delay correction (sensitivity analysis): for SIH-RD, the delay is the number of months between admission and the processing month; for SIVEP-Gripe, it is the number of days between the first day of the month of symptom onset and the date the case entered the system (`DT_DIGITA`) or, for RSV outcomes, the later of this date and the date of the positive RSV result (`DT_PCR` or `DT_RES_AN`). Delay distributions are estimated from 2023–2025 by state (national distribution when there are fewer than 200 events), and corrected counts for 2026 are the sum of the inverse of the probability of being available at the time of extraction.
+Reporting-delay correction (sensitivity analysis): for SIH-RD, the delay is the number of months between admission and the processing month; for SIVEP-Gripe, it is the number of days between the first day of the month of symptom onset and the date the case entered the system (`DT_DIGITA`) or, for RSV outcomes, the later of this date and the date of the positive RSV result (`DT_PCR` or `DT_RES_AN`). Delay distributions are estimated from the reference years (`delay_years` in `00_setup.R`, 2022–2025) by state (national distribution when there are fewer than 200 events), and corrected counts for 2026 are the sum of the inverse of the probability of being available at the time of extraction.
 
 Set the working directory at the top of each script (`setwd`) to the folder of the repository and run the scripts in order. Results are written to `output/`.
 
